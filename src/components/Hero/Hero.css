@@ -1,0 +1,14 @@
+.hero-wrapper {
+  transition: all 0.35s ease;
+}
+
+.hero-full {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+}
+
+.hero-shrink {
+  padding-top: 4rem;
+  padding-bottom: 2rem;
+}
