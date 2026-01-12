@@ -2,6 +2,8 @@ import { Container, Row, Col, Card, Button, Spinner } from "react-bootstrap";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import HiredClientCard from "../components/Freelancers/HiredClientCard";
+import JobCard from "../components/jobs/JobCard";
 
 export default function FreelancerProfile() {
   const { id } = useParams(); // id = firebase_uid dari URL
@@ -12,33 +14,57 @@ export default function FreelancerProfile() {
   const [freelancer, setFreelancer] = useState(null);
   const [loading, setLoading] = useState(true);
   const [hiring, setHiring] = useState(false);
+  const [hiredJobs, setHiredJobs] = useState([]);
+  const [hirers, setHirers] = useState([]);
 
   const API = import.meta.env.VITE_API_URL;
+
+  const isOwnProfile = user?.firebaseUser?.uid === id;
 
   // FETCH FREELANCER PROFILE
   useEffect(() => {
     if (!id) return;
     setLoading(true);
 
-    fetch(`${API}/users/${id}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to fetch");
-        return res.json();
-      })
-      .then((data) => {
-        // convert skills array to string if needed
-        setFreelancer({
-          ...data,
-          skills: Array.isArray(data.skills)
-            ? data.skills.join(", ")
-            : data.skills || "",
-        });
-      })
+    const fetchProfile = async () => {
+      const res = await fetch(`${API}/users/${id}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+      if (!res.ok) throw new Error("Failed to fetch");
+      const data = await res.json();
+      
+      // convert skills array to string if needed
+      setFreelancer({
+        ...data,
+        skills: Array.isArray(data.skills)
+          ? data.skills.join(", ")
+          : data.skills || "",
+      });
+    };
+
+    const fetchOwnData = async () => {
+      if (!isOwnProfile) return;
+      
+      try {
+        const [hiredJobsRes, hirersRes] = await Promise.all([
+          fetch(`${API}/me/hired-jobs`, { headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`${API}/me/hirers`, { headers: { Authorization: `Bearer ${token}` } }),
+        ]);
+        
+        const hiredJobsData = await hiredJobsRes.json();
+        const hirersData = await hirersRes.json();
+        
+        setHiredJobs(hiredJobsData || []);
+        setHirers(hirersData || []);
+      } catch (err) {
+        console.error("Failed to fetch own data:", err);
+      }
+    };
+
+    Promise.all([fetchProfile(), fetchOwnData()])
       .catch(() => setFreelancer(null))
       .finally(() => setLoading(false));
-  }, [id, token]);
+  }, [id, token, isOwnProfile]);
 
   // HIRE FREELANCER
   const handleHire = async () => {
@@ -115,12 +141,42 @@ export default function FreelancerProfile() {
             <h5>About</h5>
             <p>{freelancer.bio || "No bio provided."}</p>
 
-            <div className="d-grid mt-4">
-              <Button size="lg" disabled={hiring} onClick={handleHire}>
-                {hiring ? "Hiring..." : "Hire Me"}
-              </Button>
-            </div>
+            {!isOwnProfile && (
+              <div className="d-grid mt-4">
+                <Button size="lg" disabled={hiring} onClick={handleHire}>
+                  {hiring ? "Hiring..." : "Hire Me"}
+                </Button>
+              </div>
+            )}
           </Card>
+
+          {isOwnProfile && (
+            <>
+              <hr />
+              <h4>Clients Who Hired Me</h4>
+              {hirers.length === 0 && <p className="text-muted">None yet</p>}
+              {hirers.map(h => (
+                <HiredClientCard
+                  key={h.id}
+                  hire={h}
+                  refresh={() => window.location.reload()}
+                />
+              ))}
+
+              <hr />
+
+              <h4>Jobs Offered To Me</h4>
+              {hiredJobs.length === 0 && <p className="text-muted">No jobs yet</p>}
+              {hiredJobs.map(j => (
+                <JobCard
+                  key={j.id}
+                  job={j}
+                  refresh={() => window.location.reload()}
+                  userId={user.firebaseUser.uid}
+                />
+              ))}
+            </>
+          )}
         </Col>
       </Row>
     </Container>

@@ -1,19 +1,16 @@
-// src/components/Hires/HiredFreelancerCard.jsx
+// src/components/Freelancers/HiredClientCard.jsx
 import { Card, Button, Badge, Modal, Form } from "react-bootstrap";
 import { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 
-export default function HiredFreelancerCard({ hire, refresh }) {
+export default function HiredClientCard({ hire, refresh }) {
   const { user } = useAuth();
   const token = user?.token;
   const navigate = useNavigate();
-  const API = import.meta.env.VITE_API_URL;
 
-  // 🔹 detect role
-  const isClient = user?.id === hire.client_id;
-  const otherUser = isClient ? hire.freelancer : hire.client;
+  const API = import.meta.env.VITE_API_URL;
 
   const [showEdit, setShowEdit] = useState(false);
   const [form, setForm] = useState({
@@ -30,7 +27,7 @@ export default function HiredFreelancerCard({ hire, refresh }) {
     });
   }, [hire]);
 
-  // MARK DONE (client only)
+  // MARK DONE
   const markDone = async () => {
     try {
       await axios.put(
@@ -45,7 +42,7 @@ export default function HiredFreelancerCard({ hire, refresh }) {
     }
   };
 
-  // CANCEL (client only)
+  // DELETE / CANCEL
   const deleteHire = async () => {
     if (!window.confirm("Cancel this job?")) return;
     try {
@@ -59,7 +56,7 @@ export default function HiredFreelancerCard({ hire, refresh }) {
     }
   };
 
-  // UPDATE (client only)
+  // UPDATE BOOKING
   const saveEdit = async () => {
     try {
       await axios.put(
@@ -75,22 +72,28 @@ export default function HiredFreelancerCard({ hire, refresh }) {
     }
   };
 
-  // 🔹 START CHAT (always chat with other user)
+  // 🔹 CHAT BUTTON FUNCTION (REPAIRED)
   const startChat = async () => {
     try {
-      const otherUserId = otherUser?.id;
+      // pastikan user_id integer
+      const otherUserId = parseInt(hire.hirer_id || hire.user_id);
       if (!otherUserId) throw new Error("Invalid user ID");
 
+      // POST conversation endpoint → selalu return conversation object
       const res = await axios.post(
         `${API}/conversations/${otherUserId}`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      navigate(`/chat?conversationId=${res.data.id}`);
+      const conversationId = parseInt(res.data.id);
+      if (!conversationId) throw new Error("Invalid conversation ID returned");
+
+      // navigate ke ChatPage
+      navigate(`/chat?conversationId=${conversationId}`);
     } catch (err) {
       console.error("Failed to start chat:", err);
-      alert("Failed to start chat");
+      alert("Failed to start chat. Make sure user exists.");
     }
   };
 
@@ -104,8 +107,8 @@ export default function HiredFreelancerCard({ hire, refresh }) {
           {hire.status}
         </Badge>
 
-        <h6 className="mb-1">{otherUser?.name}</h6>
-        <small className="text-muted">{otherUser?.skills || "-"}</small>
+        <h6 className="mb-1">{hire.hirer_name || hire.user_name || "-"}</h6>
+        <small className="text-muted">{hire.hirer_skills || hire.user_skills || "-"}</small>
 
         <p className="mt-2 mb-1 small">
           <b>Project:</b> {hire.project_description || "-"}
@@ -117,36 +120,16 @@ export default function HiredFreelancerCard({ hire, refresh }) {
           <b>Notes:</b> {hire.notes || "-"}
         </p>
 
-        <div className="mt-2 d-flex gap-2">
-          <Button
-            size="sm"
-            variant="outline-primary"
-            onClick={() => navigate(`/users/${otherUser.id}`)}
-          >
-            View Profile
-          </Button>
-
-          <Button size="sm" variant="info" onClick={startChat}>
-            Chat
-          </Button>
-
-          {isClient && hire.status !== "done" && (
-            <>
-              <Button size="sm" variant="secondary" onClick={() => setShowEdit(true)}>
-                Edit
-              </Button>
-              <Button size="sm" variant="success" onClick={markDone}>
-                Done
-              </Button>
-              <Button size="sm" variant="danger" onClick={deleteHire}>
-                Cancel
-              </Button>
-            </>
-          )}
-        </div>
+        {hire.status !== "done" && (
+          <div className="mt-2 d-flex gap-2">
+            <Button size="sm" variant="secondary" onClick={() => setShowEdit(true)}>Edit</Button>
+            <Button size="sm" variant="success" onClick={markDone}>Done</Button>
+            <Button size="sm" variant="danger" onClick={deleteHire}>Cancel</Button>
+            <Button size="sm" variant="info" onClick={startChat}>Chat</Button>
+          </div>
+        )}
       </Card>
 
-      {/* EDIT MODAL (client only) */}
       <Modal show={showEdit} onHide={() => setShowEdit(false)}>
         <Modal.Header closeButton>
           <Modal.Title>Edit Project Details</Modal.Title>
@@ -158,9 +141,7 @@ export default function HiredFreelancerCard({ hire, refresh }) {
               as="textarea"
               rows={2}
               value={form.project_description}
-              onChange={(e) =>
-                setForm({ ...form, project_description: e.target.value })
-              }
+              onChange={(e) => setForm({ ...form, project_description: e.target.value })}
             />
           </Form.Group>
 
@@ -170,9 +151,7 @@ export default function HiredFreelancerCard({ hire, refresh }) {
               as="textarea"
               rows={2}
               value={form.special_request}
-              onChange={(e) =>
-                setForm({ ...form, special_request: e.target.value })
-              }
+              onChange={(e) => setForm({ ...form, special_request: e.target.value })}
             />
           </Form.Group>
 
@@ -182,16 +161,12 @@ export default function HiredFreelancerCard({ hire, refresh }) {
               as="textarea"
               rows={2}
               value={form.notes}
-              onChange={(e) =>
-                setForm({ ...form, notes: e.target.value })
-              }
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
             />
           </Form.Group>
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="primary" onClick={saveEdit}>
-            Save
-          </Button>
+          <Button variant="primary" onClick={saveEdit}>Save</Button>
         </Modal.Footer>
       </Modal>
     </>
